@@ -1,0 +1,55 @@
+# For fast local iteration without a Kubernetes cluster: same three roles
+# (api, worker, the seed script run once via `make seed`) against one MySQL.
+# The actual k8s manifests are in k8s/ - see README for kind instructions.
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_change_me}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-reminder_scheduler}
+      MYSQL_USER: ${MYSQL_USER:-reminder_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change_me}
+    ports:
+      - "3308:3306"  # a port of its own so it does not collide with other projects
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root_change_me}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment: &app_env
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-reminder_user}:${MYSQL_PASSWORD:-change_me}@mysql:3306/${MYSQL_DATABASE:-reminder_scheduler}
+      MAX_ATTEMPTS: ${MAX_ATTEMPTS:-5}
+      RETRY_BASE_DELAY_SECONDS: ${RETRY_BASE_DELAY_SECONDS:-10}
+      RETRY_MAX_DELAY_SECONDS: ${RETRY_MAX_DELAY_SECONDS:-300}
+      LEASE_SECONDS: ${LEASE_SECONDS:-30}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-3}
+      CLAIM_BATCH_SIZE: ${CLAIM_BATCH_SIZE:-10}
+      NOTIFIER_FAILURE_RATE: ${NOTIFIER_FAILURE_RATE:-0.3}
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: .
+    command: python -m app.worker
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *app_env
+      WORKER_ID: local-worker-1
+    # Two independent worker containers, same image, same table - the local
+    # equivalent of two Deployment replicas in k8s/worker-deployment.yaml.
+    deploy:
+      replicas: 2
+
+volumes:
+  mysql_data:
