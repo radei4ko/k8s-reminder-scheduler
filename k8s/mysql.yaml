@@ -1,0 +1,75 @@
+# A single-replica MySQL for the demo. Not how you'd run it for real - a
+# managed database (RDS, Cloud SQL) or an operator-managed StatefulSet with
+# proper replication is the production answer - but a Deployment + PVC is
+# enough to prove the locking and leasing logic against a real MySQL 8
+# inside the cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: reminder-scheduler
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # avoids two MySQL pods fighting over the same PVC
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          envFrom:
+            - secretRef:
+                name: mysql-credentials
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "localhost"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "localhost"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mysql-data
+        - name: init-script
+          configMap:
+            name: mysql-init-script
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data
+  namespace: reminder-scheduler
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: reminder-scheduler
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306

@@ -1,0 +1,12 @@
+# Same init script docker-compose mounts locally - kept identical so the two
+# environments behave the same way.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-init-script
+  namespace: reminder-scheduler
+data:
+  init.sql: |
+    CREATE DATABASE IF NOT EXISTS reminder_scheduler_test;
+    GRANT ALL PRIVILEGES ON reminder_scheduler_test.* TO 'reminder_user'@'%';
+    FLUSH PRIVILEGES;

@@ -1,0 +1,30 @@
+# Stands in for whatever real trigger marks a loan as delinquent - here it's
+# just "run the seed script every 5 minutes" so a demo cluster keeps
+# generating fresh work to watch the workers churn through, without needing
+# to curl the API by hand.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: seed-due-reminders
+  namespace: reminder-scheduler
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: seed
+              image: reminder-scheduler:local
+              imagePullPolicy: IfNotPresent
+              command: ["python", "-m", "scripts.seed_due_reminders"]
+              envFrom:
+                - configMapRef:
+                    name: app-config
+                - secretRef:
+                    name: mysql-credentials

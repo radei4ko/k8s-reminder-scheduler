@@ -1,0 +1,11 @@
+# Maps the host's localhost:8000 straight to the api Service's NodePort, so
+# `curl localhost:8000/stats` works without a kubectl port-forward running in
+# a separate terminal.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8000
+        protocol: TCP

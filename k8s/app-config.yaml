@@ -1,0 +1,16 @@
+# Non-secret tuning knobs, shared by the api Deployment, the worker
+# Deployment, and the seed CronJob - one place to change LEASE_SECONDS
+# instead of three.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: reminder-scheduler
+data:
+  MAX_ATTEMPTS: "5"
+  RETRY_BASE_DELAY_SECONDS: "10"
+  RETRY_MAX_DELAY_SECONDS: "300"
+  LEASE_SECONDS: "30"
+  POLL_INTERVAL_SECONDS: "3"
+  CLAIM_BATCH_SIZE: "10"
+  NOTIFIER_FAILURE_RATE: "0.3"

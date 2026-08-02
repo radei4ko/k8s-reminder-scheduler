@@ -1,0 +1,39 @@
+# Scale this number up or down and nothing else in the system needs to
+# change - that is the entire point of the claim/lease design in app/service.py.
+# Every replica polls the same table; SKIP LOCKED keeps them from claiming
+# the same row, and the lease TTL means a replica that gets killed mid-send
+# (by a rollout, a scale-down, a node eviction) does not strand its task -
+# another replica picks it up once the lease expires.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: reminder-scheduler
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      # No WORKER_ID is set anywhere here on purpose - app/config.py falls
+      # back to the pod's hostname, and Kubernetes already sets a Deployment
+      # pod's hostname to its pod name. Every replica gets a distinct,
+      # readable identity for free.
+      containers:
+        - name: worker
+          image: reminder-scheduler:local
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "app.worker"]
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: mysql-credentials
+      # Gives an in-flight send time to finish and report its result under
+      # SIGTERM (see app/worker.py's signal handler) instead of being cut off
+      # by SIGKILL and leaving the task to wait out its full lease TTL.
+      terminationGracePeriodSeconds: 40
