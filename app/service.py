@@ -224,7 +224,16 @@ class ReminderTaskService:
                     # once regardless of each row's prior value.
                     ReminderTask.attempts_made: ReminderTask.attempts_made + 1,
                 },
-                synchronize_session=False,
+                # "fetch" rather than False: it identifies the affected rows
+                # with a SELECT and expires any of them already sitting in this
+                # session's identity map. Skipping that is exactly what caused
+                # the first version of this code to fail its own tests -
+                # session.query(id=...) right after this commit was returning
+                # a stale, pre-update copy of the row from the identity map
+                # instead of what the UPDATE had just written, and
+                # complete_task fenced out every result as "stale" on the
+                # very first call.
+                synchronize_session="fetch",
             )
         )
         self.db.commit()

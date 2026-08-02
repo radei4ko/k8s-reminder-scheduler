@@ -86,9 +86,11 @@ def test_exhausted_after_max_attempts(db):
 
     for _ in range(2):
         [claimed] = service.claim_due_tasks("worker-a", limit=10)
+        result = service.complete_task(claimed.id, claimed.lease_token, "worker-a", TRANSIENT)
+        # Skip the backoff wait between attempts - only matters if there is a
+        # next iteration; harmless to set on the last one too.
         task.next_attempt_at = None
         db.commit()
-        result = service.complete_task(claimed.id, claimed.lease_token, "worker-a", TRANSIENT)
 
     assert result.status == TaskStatus.DEAD
     assert result.attempts_made == 2

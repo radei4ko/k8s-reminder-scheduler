@@ -12,7 +12,7 @@ def client(db):
     app.dependency_overrides.clear()
 
 
-def payload(key="api-1", loan="loan-7", channel="email"):
+def payload(key="api-0001", loan="loan-7", channel="email"):
     return {"idempotency_key": key, "loan_id": loan, "channel": channel, "message": "overdue"}
 
 
