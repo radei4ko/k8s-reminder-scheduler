@@ -3,6 +3,7 @@ import uuid
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     Column,
     DateTime,
     Enum,
@@ -74,7 +75,7 @@ class ReminderTask(Base):
     idempotency_key = Column(String(64), nullable=False, unique=True)
 
     loan_id = Column(String(64), nullable=False, index=True)
-    channel = Column(String(16), nullable=False)  # "email" or "sms"
+    channel = Column(String(16), nullable=False)
     message = Column(String(500), nullable=False)
 
     status = Column(
@@ -119,6 +120,12 @@ class ReminderTask(Base):
         # The sweep for abandoned leases:
         #   WHERE status = 'leased' AND lease_expires_at <= now
         Index("ix_reminder_tasks_status_lease_expiry", "status", "lease_expires_at"),
+        # The Pydantic schema in app/schemas.py rejects an unknown channel on
+        # the way in through the API, but that only guards the API. Anything
+        # writing to this table another way - a migration, a one-off script,
+        # a future second API - would not go through it. The constraint is the
+        # backstop.
+        CheckConstraint("channel IN ('email', 'sms')", name="ck_reminder_tasks_channel"),
     )
 
     def __repr__(self) -> str:
