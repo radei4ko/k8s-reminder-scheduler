@@ -4,7 +4,7 @@ come from .env via docker-compose.
 """
 
 import os
-import uuid
+import socket
 
 from dotenv import load_dotenv
 
@@ -30,11 +30,14 @@ DATABASE_URL = os.getenv(
     "mysql+pymysql://reminder_user:change_me@mysql:3306/reminder_scheduler",
 )
 
-# In the Deployment this is the pod name (metadata.name via fieldRef), so a
-# lease's owner_id directly identifies which pod is holding a task - useful
-# when reading `kubectl logs` next to a row in the database. Outside k8s it
-# falls back to a random id per process.
-WORKER_ID = os.getenv("WORKER_ID") or f"local-{uuid.uuid4().hex[:8]}"
+# Falls back to the container's hostname, which Docker and Kubernetes both
+# already set to something unique per container - the pod name in k8s,
+# a random container id under docker-compose. That means every worker replica
+# gets a distinct owner_id with zero extra wiring: no downward API needed,
+# no per-replica environment override. A lease's owner_id then directly
+# identifies which pod was holding a task - readable straight out of
+# `kubectl logs` next to a row in the database.
+WORKER_ID = os.getenv("WORKER_ID") or socket.gethostname()
 
 # Must comfortably exceed how long a real send takes. Too short and a slow but
 # healthy worker gets its task stolen out from under it; too long and a

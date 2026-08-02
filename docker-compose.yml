@@ -43,9 +43,9 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    environment:
-      <<: *app_env
-      WORKER_ID: local-worker-1
+    environment: *app_env
+    # No WORKER_ID override here - each replica's container hostname is
+    # already unique, and that is what app/config.py falls back to.
     # Two independent worker containers, same image, same table - the local
     # equivalent of two Deployment replicas in k8s/worker-deployment.yaml.
     deploy:
